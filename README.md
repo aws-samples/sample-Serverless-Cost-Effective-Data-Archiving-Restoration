@@ -1,4 +1,4 @@
-## My Project
+## Serverless-Cost-Effective-Data-Archiving-Restoration
 
 # Problem Statement.
 Many organizations generate a large volume of files in Amazon S3 buckets from diverse sources. As part of a recurring workflow, these files undergo quality validation, and a summary report is produced for business stakeholders. Once the validation is reviewed and approved, the files are archived to S3 Glacier Deep Archive to optimize long-term storage costs. Currently, this archival is managed using a scheduled S3 Lifecycle policy. However, this method can lead to elevated costs due to bulk transition charges associated with time-based archival.
@@ -140,12 +140,12 @@ This security model follows the AWS Well-Architected Framework’s Security Pill
 
 
 ## Prerequisites
-* git to be installed. (https://git-scm.com/downloads)
-* AWS CLI Installed & Configured. ( https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html
-https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
-* Right IAM Privilege
-* SAM Install (https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* To run this solution , you need VPC & Subnets details to deploy lamda function.
+
+* [Git](https://git-scm.com/downloads) installed.
+* [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) installed and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
+* Appropriate IAM permissions.
+* [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) installed.
+* VPC and Subnet details are required to deploy the Lambda function within a private network.
 
 # Deployment Step
 
