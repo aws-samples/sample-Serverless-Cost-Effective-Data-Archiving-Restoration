@@ -145,7 +145,7 @@ This security model follows the AWS Well-Architected Framework’s Security Pill
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) installed and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
 * Appropriate IAM permissions.
 * [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) installed.
-* VPC and Subnet details are required to deploy the Lambda function within a private network.
+* [VPC and Subnet](https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html)  details are required to deploy the Lambda function within a private network.
 
 # Deployment Step
 
