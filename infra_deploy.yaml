@@ -1,0 +1,779 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'AWS CloudFormation sample template that builds end to end Object
+  demo Pipeline '
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Network Configuration
+        Parameters:
+          - VPCSelect
+          - SubnetSelect
+          - SGSelect
+      - Label:
+          default: Job Configuration
+        Parameters:
+          - ENVFargatetype
+          - MaxCPUs
+          - JobVCPUs
+          - JobMemory
+      - Label:
+          default: Notify Configuration
+        Parameters:
+          - RestoreNotification
+    ParameterLabels:
+      ProjectName:
+        default: test
+      VPCSelect:
+        default: Select the VPC to deploy
+      SubnetSelect:
+        default: Select the Subnets
+      SGSelect:
+        default: Select the Security Groups
+      ENVFargatetype:
+        default: Select the Environment Type you like to execute
+      MaxCPUs:
+        default: Enter Max CPUs to be used
+      JobVCPUs:
+        default: Enter the number of vCPUs to be used for a Job
+      JobMemory:
+        default: Enter memory to be used for a Job
+      RestoreNotification:
+        default: Enter your Valid Email ID to Notify
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Provide Project name
+    Default: 'demo'
+  VPCSelect:
+    Description: Select VPC
+    Type: List<AWS::EC2::VPC::Id>
+  SubnetSelect:
+    Description: Select Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+  SGSelect:
+    Description: Select Security group
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  JobVCPUs:
+    Description: Eneter number of vCPUs for a Job
+    Type: String
+    AllowedValues:
+      - 0.25
+      - 0.5
+      - 1
+      - 2
+      - 4
+    Default: 1
+  JobMemory:
+    Description: Eneter Memory(GB) required for a Job
+    Type: String
+    AllowedValues:
+      - 512
+      - 1024
+      - 2048
+      - 3072
+      - 4096
+      - 5120
+      - 6144
+      - 7168
+      - 8192
+    Default: 2048
+  MaxCPUs:
+    Description: Max vCPU Allowed for concurrency
+    Type: String
+    Default: 10
+  ENVFargatetype:
+    Description: Select OnDemand or Spot Farget
+    Type: String
+    AllowedValues:
+      - FARGATE
+      - FARGATE_SPOT
+    Default: FARGATE
+  RestoreNotification:
+    Default: pratapkn@amazon.com
+    Description: Email address to notify on successful restoration of the files
+    Type: String
+
+Resources:
+  ArchiveMasterRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ProjectName}-archivemaster
+      ImageScanningConfiguration:
+        ScanOnPush: true
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
+
+  ArchiverRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ProjectName}_archiver
+      ImageScanningConfiguration:
+        ScanOnPush: true
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
+
+  RestorerRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ProjectName}_restorer
+      ImageScanningConfiguration:
+        ScanOnPush: true
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
+
+  ArchiveLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: 'archive-lambda'
+      ReservedConcurrentExecutions: 10
+      Handler: archive-lambda.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      Code: ./api-gateway-lambda/archive-lambda/
+      Role: !GetAtt ArchiveLambdaRole.Arn
+      Environment:
+        Variables:
+          JOB_QUEUE: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref ArchiveMasterQueue
+          JOB_DEFINITION: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref ArchiveMasterJD
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: Just used only for POC; hence no VPC deployment for lambda
+
+  ArchiveLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+
+  RestoreLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: 'restore-lambda'
+      ReservedConcurrentExecutions: 10
+      Handler: restore-lambda.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      Code: ./api-gateway-lambda/restore-lambda/
+      Role: !GetAtt RestoreLambdaRole.Arn
+      Environment:
+        Variables:
+          JOB_QUEUE: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref RestorerQueue
+          JOB_DEFINITION: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref RestorerJD
+          TOPIC_ARN: !Ref RestoreNotify
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: Just used only for POC; hence no VPC deployment for lambda
+
+  RestoreLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+
+  
+
+  RestoreCompleteLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - batch.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - batch.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
+
+  ArchiveMasterEnv:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: 'archive-master-env'
+      ComputeResources:
+        Type: !Ref ENVFargatetype
+        MaxvCpus: !Ref MaxCPUs
+        Subnets: !Ref SubnetSelect
+        SecurityGroupIds: !Ref SGSelect
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+  ArchiveMasterQueue:
+    DependsOn: ArchiveMasterEnv
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: archive-master-env
+          Order: 1
+      JobQueueName: 'archive-master-queue'
+      Priority: 1
+
+  ArchiveMasterJD:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      ContainerProperties:
+        Image: !GetAtt ArchiveMasterRepo.RepositoryUri
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        ResourceRequirements:
+          - Type: VCPU
+            Value: !Ref JobVCPUs
+          - Type: MEMORY
+            Value: !Ref JobMemory
+        ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+        JobRoleArn: !GetAtt TaskExecutionRole.Arn
+        Environment:
+          - Name: JOB_DEFINITION
+            Value: !Select
+              - 1
+              - !Split
+                - /
+                - !Select
+                  - 5
+                  - !Split
+                    - ':'
+                    - !Ref ArchiverJD
+          - Name: JOB_QUEUE
+            Value: !Select
+              - 1
+              - !Split
+                - /
+                - !Select
+                  - 5
+                  - !Split
+                    - ':'
+                    - !Ref ArchiverQueue
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+      JobDefinitionName: 'archive-master-jd'
+      PlatformCapabilities:
+        - FARGATE
+      Type: container
+
+  ArchiverEnv:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: archiver-env
+      ComputeResources:
+        Type: !Ref ENVFargatetype
+        MaxvCpus: !Ref MaxCPUs
+        Subnets: !Ref SubnetSelect
+        SecurityGroupIds: !Ref SGSelect
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+  ArchiverQueue:
+    DependsOn: ArchiverEnv
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: archiver-env
+          Order: 1
+      JobQueueName: archiver-queue
+      Priority: 1
+
+  ArchiverJD:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      ContainerProperties:
+        Image: !GetAtt ArchiverRepo.RepositoryUri
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        ResourceRequirements:
+          - Type: VCPU
+            Value: !Ref JobVCPUs
+          - Type: MEMORY
+            Value: !Ref JobMemory
+        Environment:
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+        ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+        JobRoleArn: !GetAtt TaskExecutionRole.Arn
+      JobDefinitionName: archiver-jd
+      PlatformCapabilities:
+        - FARGATE
+      Type: container
+
+  RestorerEnv:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: restorer-env
+      ComputeResources:
+        Type: !Ref ENVFargatetype
+        MaxvCpus: !Ref MaxCPUs
+        Subnets: !Ref SubnetSelect
+        SecurityGroupIds: !Ref SGSelect
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+  RestorerQueue:
+    DependsOn: RestorerEnv
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: restorer-env
+          Order: 1
+      JobQueueName: 'restorer-queue'
+      Priority: 1
+
+  RestorerJD:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      ContainerProperties:
+        Image: !GetAtt RestorerRepo.RepositoryUri
+        NetworkConfiguration:
+          AssignPublicIp: ENABLED
+        ResourceRequirements:
+          - Type: VCPU
+            Value: !Ref JobVCPUs
+          - Type: MEMORY
+            Value: !Ref JobMemory
+        ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+        JobRoleArn: !GetAtt TaskExecutionRole.Arn
+      JobDefinitionName: 'restorer-jd'
+      PlatformCapabilities:
+        - FARGATE
+      Type: container
+
+  ObjectdemoApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Object demo API
+      Description: API used for Object demo
+      FailOnWarnings: true
+
+  ObjectdemoUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ObjectdemoApi
+          Stage: !Ref ObjectdemoApiStage
+      Description: Object demo default usage plan
+      Quota:
+        Limit: 5000
+        Period: MONTH
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+
+  ArchiveLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt ArchiveLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join
+        - ''
+        - - 'arn:aws:execute-api:'
+          - !Ref AWS::Region
+          - ':'
+          - !Ref AWS::AccountId
+          - ':'
+          - !Ref ObjectdemoApi
+          - /*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W24
+            reason: Only invoke would suffice
+
+  RestoreLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt RestoreLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Join
+        - ''
+        - - 'arn:aws:execute-api:'
+          - !Ref AWS::Region
+          - ':'
+          - !Ref AWS::AccountId
+          - ':'
+          - !Ref ObjectdemoApi
+          - /*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W24
+            reason: Only invoke would suffice
+
+  ObjectdemoCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayLogsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:GetLogEvents
+                  - logs:FilterLogEvents
+                Resource: '*'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: For now holding it for wildcard resource as per the AWS doc
+
+  ObjectdemoAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ObjectdemoCloudWatchLogsRole.Arn
+  ObjectdemoApiStage:
+    DependsOn:
+      - ObjectdemoAccount
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      AccessLogSetting:
+        DestinationArn: !GetAtt AccessLogGroup.Arn
+        Format: '{"requestTime":"$context.requestTime","requestId":"$context.requestId","httpMethod":"$context.httpMethod","path":"$context.path","resourcePath":"$context.resourcePath","status":$context.status,"responseLatency":$context.responseLatency}'
+      MethodSettings:
+        - DataTraceEnabled: true
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          ResourcePath: /*
+      RestApiId: !Ref ObjectdemoApi
+      StageName: LATEST
+
+  AccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: Log encryption avoid no sensitive data
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ArchiveRequest
+      - RestoreRequest
+    Properties:
+      RestApiId: !Ref ObjectdemoApi
+      StageName: live
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W68
+            reason: Usage plan not required for API deployment ; its experimental
+  ArchiveResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ObjectdemoApi
+      ParentId: !GetAtt ObjectdemoApi.RootResourceId
+      PathPart: archive
+  ArchiveRequest:
+    DependsOn: ArchiveLambdaPermission
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Join
+          - ''
+          - - 'arn:aws:apigateway:'
+            - !Ref AWS::Region
+            - ':lambda:path/2015-03-31/functions/'
+            - !GetAtt ArchiveLambda.Arn
+            - /invocations
+        IntegrationResponses:
+          - StatusCode: 200
+      RequestParameters:
+        method.request.querystring.name: false
+      ResourceId: !Ref ArchiveResource
+      RestApiId: !Ref ObjectdemoApi
+      MethodResponses:
+        - StatusCode: 200
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W59
+            reason: Authorisation not required, This is experimental pipeline for customer
+              to use internally
+
+  RestoreResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ObjectdemoApi
+      ParentId: !GetAtt ObjectdemoApi.RootResourceId
+      PathPart: restore
+  RestoreRequest:
+    DependsOn: RestoreLambdaPermission
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Join
+          - ''
+          - - 'arn:aws:apigateway:'
+            - !Ref AWS::Region
+            - ':lambda:path/2015-03-31/functions/'
+            - !GetAtt RestoreLambda.Arn
+            - /invocations
+        IntegrationResponses:
+          - StatusCode: 200
+      RequestParameters:
+        method.request.querystring.name: false
+      ResourceId: !Ref RestoreResource
+      RestApiId: !Ref ObjectdemoApi
+      MethodResponses:
+        - StatusCode: 200
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W59
+            reason: Authorisation not required, This is experimental pipeline for customer
+              to use internally
+
+  ArchiveMasterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProjectName}_archive_master
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: key
+          KeyType: HASH
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need a unified table to manage
+
+  RestoreTrackerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${ProjectName}_restore_track
+      BillingMode: PROVISIONED
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      AttributeDefinitions:
+        - AttributeName: archive_key
+          AttributeType: S
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: archive_key
+          KeyType: HASH
+        - AttributeName: key
+          KeyType: RANGE
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need a unified table to manage
+
+  RestoreNotify:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref RestoreNotification
+          Protocol: email
+
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W47
+            reason: KMS not required for SNS topic; experimental code.
+
+  ArchiveBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-src'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  DestArchiveBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  RestoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true   
+Outputs:
+  RootUrl:
+    Description: Root URL of the Object demo API
+    Value: !Join
+      - ''
+      - - https://
+        - !Ref ObjectdemoApi
+        - .execute-api.
+        - !Ref AWS::Region
+        - .amazonaws.com

@@ -1,0 +1,11 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "test"
+resolve_s3 = true
+s3_prefix = "test"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "ProjectName=\"amazon\" VPCSelect=\"vpc-0a6317bbdecbf8d5f\" SubnetSelect=\"subnet-0b74bae7e500837ad\" SGSelect=\"sg-0cf4e345f1692d9e7\" JobVCPUs=\"1\" JobMemory=\"2048\" MaxCPUs=\"10\" ENVFargatetype=\"FARGATE\" RestoreNotification=\"test@amazon.com\""
+image_repositories = []

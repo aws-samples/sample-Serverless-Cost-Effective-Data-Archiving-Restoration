@@ -1,0 +1,2 @@
+aws ecr batch-delete-image --repository-name archivemaster --image-ids imageDigest=$(aws ecr list-images --repository-name archivemaster | jq -r '.imageIds[].imageDigest')
+aws ecr batch-delete-image --repository-name restorer --image-ids imageDigest=$(aws ecr list-images --repository-name restorer | jq -r '.imageIds[].imageDigest')
