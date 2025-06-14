@@ -28,6 +28,7 @@ Many organizations generate a large volume of files in Amazon S3 buckets from di
 	6. IAM
 
 # Architecture
+
 Below is the solution architecture diagram to overcome the problem statement:
 
 ![Architecture Diagram](https://github.com/user-attachments/assets/3fd32a74-1a26-4878-b579-c8c29c56ce03)
