@@ -29,10 +29,8 @@ Many organizations generate a large volume of files in Amazon S3 buckets from di
 
 # Architecture
 Below Solution architecture diagram to overcome the problem statement
+![Architecture Diagram](https://github.com/user-attachments/assets/3fd32a74-1a26-4878-b579-c8c29c56ce03)
 
- <img width="1286" alt="Screenshot 2025-06-14 at 12 54 40 PM" src="https://github.com/user-attachments/assets/3fd32a74-1a26-4878-b579-c8c29c56ce03" />
-
- 
 # Solution Overview
 This solution creates a fully automated pipeline that handles archiving and restoring jobs using AWS Batch, Lambda functions, and API Gateway. The solution uses multiple AWS services for processing, job orchestration, and notifications
 * The API Gateway provides an interface for initiating archiving or restoring jobs.
