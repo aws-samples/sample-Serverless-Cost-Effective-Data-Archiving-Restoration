@@ -1,5 +1,3 @@
-<img width="1286" alt="Screenshot 2025-06-14 at 12 54 40 PM" src="https://github.com/user-attachments/assets/024b74e4-873e-4bfb-82eb-0ce0eb1d9448" />## Serverless-Cost-Effective-Data-Archiving-Restoration
-
 # Problem Statement.
 Many organizations generate a large volume of files in Amazon S3 buckets from diverse sources. As part of a recurring workflow, these files undergo quality validation, and a summary report is produced for business stakeholders. Once the validation is reviewed and approved, the files are archived to S3 Glacier Deep Archive to optimize long-term storage costs. Currently, this archival is managed using a scheduled S3 Lifecycle policy. However, this method can lead to elevated costs due to bulk transition charges associated with time-based archival.
 
