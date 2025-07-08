@@ -3,9 +3,9 @@ A large enterprise generates massive volumes of data files in Amazon S3 from mul
 
 # Discovery Phase.
   Key findings from the assessment:
-1.Historical data shows minimal file access patterns after the initial processing
-2.Users accept a 24-hour retrieval time for archived files when needed
-3.A scheduled backup process (cron job) exists as a failsafe mechanism to ensure archival, in case the primary Quality Check System doesn't initiate the process
+1. Historical data shows minimal file access patterns after the initial processing
+2. Users accept a 24-hour retrieval time for archived files when needed
+3. A scheduled backup process (cron job) exists as a failsafe mechanism to ensure archival, in case the primary Quality Check System doesn't initiate the process
 
 # Business Requirement.
    1. Build completely a Serverless Solution.
