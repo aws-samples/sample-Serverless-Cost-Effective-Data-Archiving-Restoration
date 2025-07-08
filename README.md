@@ -1,19 +1,16 @@
-## Serverless-Cost-Effective-Data-Archiving-Restoration
-
 # Problem Statement.
-Many organizations generate a large volume of files in Amazon S3 buckets from diverse sources. As part of a recurring workflow, these files undergo quality validation, and a summary report is produced for business stakeholders. Once the validation is reviewed and approved, the files are archived to S3 Glacier Deep Archive to optimize long-term storage costs. Currently, this archival is managed using a scheduled S3 Lifecycle policy. However, this method can lead to elevated costs due to bulk transition charges associated with time-based archival.
+A reputed financial company generates billions of files in an S3 bucket from various sources. As part of a monthly workflow, a quality check system validates these files and generates a summary report for executives. After manual approval, all files are archived into S3 Deep Archive to reduce storage costs. Currently, an S3 lifecycle event is configured to move the files into Deep Archive on a set date (the 10th of each month). However, this approach incurs high archival costs due to S3 transition charges.
 
 # Discovery Phase.
-  1. It was observed that the files stored in Amazon S3 are rarely accessed, and stakeholders are willing to tolerate retrieval delays of up to 24 hours — aligning well with the characteristics of long-term archival storage.
-  2. To ensure reliability, the archival process is automatically triggered via a scheduled cron job as a fallback mechanism, in case it is not initiated by the primary quality validation workflow.
+  1. During discovery phase , it has been identified that files are rarly accessed by user and users are ready to wait for 24hr to restore files from archival.
+  2. Archival process auto triggered by cronjob (10th of every month 3:00 AM) , in case archival process does not triggered by QualityCheck System 
 
 # Business Requirement.
-   1. Design a fully serverless solution to simplify operations and improve scalability.
-   2. Optimize costs by minimizing Amazon S3 archival and transition charges.
-   3. Expose an API endpoint that can be easily integrated with source systems for triggering the archival process.
-   4. Implement a scheduled archival mechanism using a cron-based trigger to ensure timely fallback execution.
-   5. Provide an API endpoint to initiate the restore process when users request access to archived files.
-
+   1. Build completely a Serverless Solution.
+   2. Reduce S3 archival cost(Cost Optimization)
+   3. Create an API endpoint which can be easily integrate with Source Application
+   4. Configure automatic archival process using Cron Scheduled(10th of every Month 3:00 AM)
+   5. Create an API endpoint for Restore process in case user requested for file.
 
 # AWS Service Used In Solution
 - [ ] **Core Serverless Service**
@@ -32,7 +29,7 @@ Many organizations generate a large volume of files in Amazon S3 buckets from di
 # Architecture
 Below Solution architecture diagram to overcome the problem statement
  
- ![alt text](archtecture.png)
+ ![image](/uploads/c621b8a3d8b72b8f52e2fa8abdaec5b6/image.png)
 # Solution Overview
 This solution creates a fully automated pipeline that handles archiving and restoring jobs using AWS Batch, Lambda functions, and API Gateway. The solution uses multiple AWS services for processing, job orchestration, and notifications
 * The API Gateway provides an interface for initiating archiving or restoring jobs.
@@ -96,6 +93,8 @@ This solution adheres to AWS security best practices to ensure the confidentiali
 
 - All Lambda functions, AWS Batch jobs, and other resources use least-privilege IAM roles.
 - IAM roles are scoped to only necessary permissions for services like S3, DynamoDB, SNS, and ECR.
+- AWS managed policies are replaced with scoped custom policies.
+- Wildcards are avoided unless technically necessary (e.g., for VPC Lambda ENIs) and justified via comments.
 
 ### ✅ Network Security
 
@@ -105,47 +104,51 @@ This solution adheres to AWS security best practices to ensure the confidentiali
 
 ### ✅ Data Protection
 
-- Data at rest is stored in Amazon S3 with **Glacier Deep Archive**, encrypted using **SSE-S3** or **SSE-KMS**.
-- All S3 interactions occur over **HTTPS**, ensuring data-in-transit encryption.
-- Buckets enforce encryption via policies or default settings.
+- Data at rest is encrypted using **SSE-KMS** for S3, DynamoDB, CloudWatch Logs, and SNS.
+- S3 buckets enforce encryption through default settings or bucket policies.
+- All data transfers use **HTTPS**, enforced via S3 bucket policy (`aws:SecureTransport`).
+- ECR repositories are configured with `ImageTagMutability: IMMUTABLE`.
 
 ### ✅ API Security
 
-- API Gateway endpoints support integration with IAM, API keys, or Amazon Cognito (based on implementation).
-- Request validation and strict input checks help block malformed or malicious payloads.
+- API Gateway endpoints integrate with IAM, API Keys, or Cognito User Pools for authentication.
+- Request validation and strict input schemas are enabled to prevent injection and malformed payloads.
 
 ### ✅ Monitoring and Logging
 
-- All key services (Lambda, Batch, API Gateway) are integrated with **CloudWatch Logs**.
-- **CloudTrail** is used for auditing and tracking API activity.
+- All Lambda functions, Batch jobs, and APIs are integrated with **Amazon CloudWatch Logs**.
+- **AWS CloudTrail** is enabled for full audit tracking of API activity.
+- Logs are encrypted using KMS and retention is configured per compliance requirements.
 
 ### ✅ Notifications and Alerts
 
-- Notifications are sent via Amazon SNS with access managed through topic policies.
-- Optional integration with CloudWatch alarms enables proactive alerting.
+- Amazon SNS is used to deliver notifications, secured with scoped topic policies.
+- Optional **CloudWatch Alarms** can be configured to send proactive alerts based on key metrics.
 
 ### ✅ Secure Container Execution
 
-- Docker images are based on minimal, secure base images.
-- Images are scanned for vulnerabilities using **Amazon ECR image scanning** before deployment.
+- Docker images use a hardened base image: `python:3.12-slim`.
+- Runs as non-root user `appuser` to follow container security best practices.
+- Images are scanned via **Amazon ECR** for vulnerabilities before deployment.
 
 ### ✅ Secrets and Configuration
 
-- No secrets or credentials are hardcoded.
-- Sensitive configurations are passed securely using **AWS SAM parameters**.
-- Use of **AWS Secrets Manager** or **SSM Parameter Store** is recommended for future secrets management.
+- No hardcoded secrets or credentials.
+- Sensitive data is securely passed via **CloudFormation parameters**.
+- For future improvements, **AWS Secrets Manager** or **SSM Parameter Store** is recommended.
 
+---
 
-This security model follows the AWS Well-Architected Framework’s Security Pillar and supports a secure, auditable, and resilient deployment.
+This security model aligns with the [AWS Well-Architected Framework – Security Pillar](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/) and supports a secure, auditable, and resilient solution architecture.
 
 
 ## Prerequisites
-
-* [Git](https://git-scm.com/downloads) installed.
-* [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) installed and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
-* Appropriate IAM permissions.
-* [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) installed.
-* [VPC and Subnet](https://docs.aws.amazon.com/vpc/latest/userguide/how-it-works.html)  details are required to deploy the Lambda function within a private network.
+* git to be installed. (https://git-scm.com/downloads)
+* AWS CLI Installed & Configured. ( https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html
+https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+* Right IAM Privilege
+* SAM Install (https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
+* To run this solution , you need VPC & Subnets details to deploy lamda function.
 
 # Deployment Step
 
@@ -288,10 +291,3 @@ The solution achieves the following outcomes:
  **Efficiency**: Automates archiving and restoration processes with a well-defined API interface for integration with other systems.
  
  **Ease of Use**: API endpoints allow for easy integration with the Quality Check system and straightforward file restoration requests.
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the MIT-0 License. See the LICENSE file.
