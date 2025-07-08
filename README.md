@@ -1,9 +1,11 @@
 # Problem Statement.
-A reputed financial company generates billions of files in an S3 bucket from various sources. As part of a monthly workflow, a quality check system validates these files and generates a summary report for executives. After manual approval, all files are archived into S3 Deep Archive to reduce storage costs. Currently, an S3 lifecycle event is configured to move the files into Deep Archive on a set date (the 10th of each month). However, this approach incurs high archival costs due to S3 transition charges.
+A large enterprise generates massive volumes of data files in Amazon S3 from multiple sources. These files undergo a monthly quality validation process, resulting in a summary report for management review. Following approval, the files need to be archived to optimize storage costs. Currently, an S3 lifecycle rule automatically transitions these files to S3 Deep Archive on a fixed date each month. However, this automated approach leads to increased transition costs due to the bulk movement of data.
 
 # Discovery Phase.
-  1. During discovery phase , it has been identified that files are rarly accessed by user and users are ready to wait for 24hr to restore files from archival.
-  2. Archival process auto triggered by cronjob (10th of every month 3:00 AM) , in case archival process does not triggered by QualityCheck System 
+  Key findings from the assessment:
+1.Historical data shows minimal file access patterns after the initial processing
+2.Users accept a 24-hour retrieval time for archived files when needed
+3.A scheduled backup process (cron job) exists as a failsafe mechanism to ensure archival, in case the primary Quality Check System doesn't initiate the process
 
 # Business Requirement.
    1. Build completely a Serverless Solution.
