@@ -1,11 +1,9 @@
 # Problem Statement.
-A large enterprise generates massive volumes of data files in Amazon S3 from multiple sources. These files undergo a monthly quality validation process, resulting in a summary report for management review. Following approval, the files need to be archived to optimize storage costs. Currently, an S3 lifecycle rule automatically transitions these files to S3 Deep Archive on a fixed date each month. However, this automated approach leads to increased transition costs due to the bulk movement of data.
+A reputed financial company generates billions of files in an S3 bucket from various sources. As part of a monthly workflow, a quality check system validates these files and generates a summary report for executives. After manual approval, all files are archived into S3 Deep Archive to reduce storage costs. Currently, an S3 lifecycle event is configured to move the files into Deep Archive on a set date (the 10th of each month). However, this approach incurs high archival costs due to S3 transition charges.
 
 # Discovery Phase.
-  Key findings from the assessment:
-1. Historical data shows minimal file access patterns after the initial processing
-2. Users accept a 24-hour retrieval time for archived files when needed
-3. A scheduled backup process (cron job) exists as a failsafe mechanism to ensure archival, in case the primary Quality Check System doesn't initiate the process
+  1. During discovery phase , it has been identified that files are rarly accessed by user and users are ready to wait for 24hr to restore files from archival.
+  2. Archival process auto triggered by cronjob (10th of every month 3:00 AM) , in case archival process does not triggered by QualityCheck System 
 
 # Business Requirement.
    1. Build completely a Serverless Solution.
@@ -31,15 +29,14 @@ A large enterprise generates massive volumes of data files in Amazon S3 from mul
 # Architecture
 Below Solution architecture diagram to overcome the problem statement
  
- ![image](https://github.com/user-attachments/assets/68007075-d392-475b-8f29-c444ab35ab08)
-
+ ![alt text](archtecture.png)
 # Solution Overview
 This solution creates a fully automated pipeline that handles archiving and restoring jobs using AWS Batch, Lambda functions, and API Gateway. The solution uses multiple AWS services for processing, job orchestration, and notifications
 * The API Gateway provides an interface for initiating archiving or restoring jobs.
 * AWS Batch handles the resource management and execution of jobs using the Docker images stored in ECR.
 * DynamoDB tracks job states and stores metadata, providing efficient job management
 * Lambda functions are invoked to perform specific steps (archiving, restoring, and completing the restore process).
-* Notifications are sent to the provided email address upon completion of restoration.
+* Notifications are sent to the provided email address for each user requests during file restore .
 
 ## 📦 How the Solution Works
 
@@ -47,11 +44,11 @@ This solution creates a fully automated pipeline that handles archiving and rest
 ### 🔐 Archiving Process
 
 1. **Trigger Archival**  
-   The on-premises system triggers the `/archive` API with a manifest containing file count and total size.
+   The on-premises/Any external system triggers the `/archive` API with a manifest containing file count and total size to start archival process.
 
 2. **Archive Lambda Function**  
    - Validates the incoming request.  
-   - Submits an AWS Batch job with file details for processing.
+   - Submits an AWS Batch job which create a ECS containers and start archival process.
 
 3. **AWS Batch (Fargate) Archival Job**  
    - Retrieves files from the source S3 bucket.  
@@ -63,6 +60,8 @@ This solution creates a fully automated pipeline that handles archiving and rest
 
 5. **Track Metadata in DynamoDB**  
    - Stores metadata for each original file (e.g., archive location, zip structure) to enable efficient future retrieval.
+   - Validate from AWS cloudwatch logs.
+   - Validate archival files from AWS s3 destination bucket.
 
 ---
 
@@ -72,8 +71,9 @@ This solution creates a fully automated pipeline that handles archiving and rest
    - The `/restore` API is called with a list of files to be retrieved.
 
 7. **Restore Lambda Function**  
-   - Looks up file metadata and archive mappings from DynamoDB.  
-   - Submits a restore job to AWS Batch with the required file details.
+   - Looks up file metadata and archive mappings from DynamoDB.
+   - In case first time request ,start the file restoration process by moving from DEEP_ARCHIVE to STANDARD which will requires 12 hr to restore.User will notified on same by SNS configuration. 
+   - Once user submit same request after 12hr ,the lambda function Submits a restore job to AWS Batch(Refer below process) which will extract required files from zip file and move into the restore bucket.
 
 8. **AWS Batch (Fargate) Restore Job**  
    - Retrieves the necessary `.zip` archives from Glacier Deep Archive.  
@@ -81,7 +81,7 @@ This solution creates a fully automated pipeline that handles archiving and rest
    - Uploads them to a dedicated restore S3 bucket.
 
 9. **Notification via SNS**  
-   - Sends an email notification via Amazon SNS once the restore process is complete.
+   - Sends an email notification via Amazon SNS when user request for files .user receive nofication for each request about exact restoration status.
 
 ---
 
@@ -96,8 +96,6 @@ This solution adheres to AWS security best practices to ensure the confidentiali
 
 - All Lambda functions, AWS Batch jobs, and other resources use least-privilege IAM roles.
 - IAM roles are scoped to only necessary permissions for services like S3, DynamoDB, SNS, and ECR.
-- AWS managed policies are replaced with scoped custom policies.
-- Wildcards are avoided unless technically necessary (e.g., for VPC Lambda ENIs) and justified via comments.
 
 ### ✅ Network Security
 
@@ -107,42 +105,38 @@ This solution adheres to AWS security best practices to ensure the confidentiali
 
 ### ✅ Data Protection
 
-- Data at rest is encrypted using **SSE-KMS** for S3, DynamoDB, CloudWatch Logs, and SNS.
-- S3 buckets enforce encryption through default settings or bucket policies.
-- All data transfers use **HTTPS**, enforced via S3 bucket policy (`aws:SecureTransport`).
-- ECR repositories are configured with `ImageTagMutability: IMMUTABLE`.
+- Data at rest is stored in Amazon S3 with **Glacier Deep Archive**, encrypted using **SSE-S3** or **SSE-KMS**.
+- All S3 interactions occur over **HTTPS**, ensuring data-in-transit encryption.
+- Buckets enforce encryption via policies or default settings.
 
 ### ✅ API Security
 
-- API Gateway endpoints integrate with IAM, API Keys, or Cognito User Pools for authentication.
-- Request validation and strict input schemas are enabled to prevent injection and malformed payloads.
+- API Gateway endpoints support integration with IAM, API keys, or Amazon Cognito (based on implementation).
+- Request validation and strict input checks help block malformed or malicious payloads.
 
 ### ✅ Monitoring and Logging
 
-- All Lambda functions, Batch jobs, and APIs are integrated with **Amazon CloudWatch Logs**.
-- **AWS CloudTrail** is enabled for full audit tracking of API activity.
-- Logs are encrypted using KMS and retention is configured per compliance requirements.
+- All key services (Lambda, Batch, API Gateway) are integrated with **CloudWatch Logs**.
+- **CloudTrail** is used for auditing and tracking API activity.
 
 ### ✅ Notifications and Alerts
 
-- Amazon SNS is used to deliver notifications, secured with scoped topic policies.
-- Optional **CloudWatch Alarms** can be configured to send proactive alerts based on key metrics.
+- Notifications are sent via Amazon SNS with access managed through topic policies.
+- Optional integration with CloudWatch alarms enables proactive alerting.
 
 ### ✅ Secure Container Execution
 
-- Docker images use a hardened base image: `python:3.12-slim`.
-- Runs as non-root user `appuser` to follow container security best practices.
-- Images are scanned via **Amazon ECR** for vulnerabilities before deployment.
+- Docker images are based on minimal, secure base images.
+- Images are scanned for vulnerabilities using **Amazon ECR image scanning** before deployment.
 
 ### ✅ Secrets and Configuration
 
-- No hardcoded secrets or credentials.
-- Sensitive data is securely passed via **CloudFormation parameters**.
-- For future improvements, **AWS Secrets Manager** or **SSM Parameter Store** is recommended.
+- No secrets or credentials are hardcoded.
+- Sensitive configurations are passed securely using **AWS SAM parameters**.
+- Use of **AWS Secrets Manager** or **SSM Parameter Store** is recommended for future secrets management.
 
----
 
-This security model aligns with the [AWS Well-Architected Framework – Security Pillar](https://docs.aws.amazon.com/wellarchitected/latest/security-pillar/) and supports a secure, auditable, and resilient solution architecture.
+This security model follows the AWS Well-Architected Framework’s Security Pillar and supports a secure, auditable, and resilient deployment.
 
 
 ## Prerequisites
@@ -227,26 +221,27 @@ curl --location --request POST '<<API Gateway Endpoint>>/live/archive' \
 "prefix": "<<S3 Prefix you like to Fuse>>",
 "file_count": <<Number of file count you like to archive>>,
 "archive_size": <<Size Cap in MB>>,
+"account": "<Account number of ECR>",
 "region": "<<AWS Region>>",
-"storage_class": "<<Storage Class>>"
+"storage_class": "<<Storage Class>>",
+"output_prefix": "<<output file name>>"
 }'
 
 Command with sample data
 
-curl --location --request POST 'https://tlk5v3eh6j.execute-api.us-east-1.amazonaws.com/LATEST/archive' \
+curl --location --request POST 'https://x08ilu6no7.execute-api.us-east-1.amazonaws.com/LATEST/archive' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-"project_name": "amazon"
-"bucket_name": "amazon-1234567890-us-east-1_src",
-"prefix": "20250410",
+"project_name": "amazon",
+"bucket_name": "amazon-1234566678-us-east-1-src",
+"prefix": "20250713",
 "file_count": 50000,
-"archive_size": 500, 
-"account": "1234567890",
+"archive_size": 500,
+"account": "12345566778",
 "region": "us-east-1",
 "storage_class": "GLACIER",
 "output_prefix": "amazon-20240410"
 }'
-
 
 ```
 
@@ -257,6 +252,7 @@ curl --location --request POST '<<API Gateway Endpoint>>/latest/restore' \
 --data-raw '{
 "project_name": "<Project Name>",
 "filename": "<<file name to Restore>>",
+"account": "<Account number of ECR>",
 "region": "<<AWS Region>>",
 "retrieval_tier": "<<Retrieval Tier>>",
 "sns_topic_arn": "<<sns topic arn>>"
@@ -264,15 +260,15 @@ curl --location --request POST '<<API Gateway Endpoint>>/latest/restore' \
 
 Command with sample data
 
-curl --location --request POST 'https://izzucr336g.execute-api.ap-south-1.amazonaws.com/LATEST/restore' \
+curl --location --request POST 'https://x08ilu6no7.execute-api.us-east-1.amazonaws.com/LATEST/restore' \
 --header 'Content-Type: application/json' \
 --data-raw '{
 "project_name": "amazon",
-"filename": "5000_20240517_003.csv",
-"account": "1234567890",
-"region": "ap-south-1",
+"filename": "1.txt,2.txt",
+"account": "12345678",
+"region": "us-east-1",
 "retrieval_tier": "Expedited",
-"sns_topic_arn": "ARN"
+"sns_topic_arn": "arn:aws:sns:us-east-1:123456789:storagetest-RestoreNotify-nciI6AHKbsrn"
 }'
 
 ```
@@ -294,3 +290,4 @@ The solution achieves the following outcomes:
  **Efficiency**: Automates archiving and restoration processes with a well-defined API interface for integration with other systems.
  
  **Ease of Use**: API endpoints allow for easy integration with the Quality Check system and straightforward file restoration requests.
+

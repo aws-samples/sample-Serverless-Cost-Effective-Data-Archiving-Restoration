@@ -12,7 +12,7 @@ def lambda_handler(event, context):
 def submit_batch_job(event):
     job_queue = os.environ['JOB_QUEUE']
     job_definition = os.environ['JOB_DEFINITION']
-    FILE_SIZE_LIMIT = int(os.environ['ARCHIVE_SIZE']) 
+    #FILE_SIZE_LIMIT = int(os.environ['ARCHIVE_SIZE']) 
     env = [
         {'name': 'PROJECT_NAME', 'value': event['project_name']},
         {'name': 'SRC_BUCKET_NAME', 'value': event['bucket_name']},
