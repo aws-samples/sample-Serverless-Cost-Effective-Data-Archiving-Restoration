@@ -10,29 +10,38 @@ def lambda_handler(event, context):
     PROJECT_NAME= event['project_name']
     AWS_ACCOUNT= event['account']
     AWS_REGION= event['region']
-    requested_filename = event['filename']
-    retrieval_tier = event['retrieval_tier']
+    REQUESTED_FILENAME_LIST = event['filename']
+    RETRIEVAL_TIER = event['retrieval_tier']
     TOPIC_ARN = event['sns_topic_arn']
-    archival_table={PROJECT_NAME}+'_archive_master'
+    ARCHIVAL_DYNAMODB_MASTER_TABLE= event['project_name'] + '_archive_master'
 
-    resp = get_archive_details(requested_filename,archival_table)
-    print(resp['Item'])
+    SRC_BKT= PROJECT_NAME + '-' + AWS_ACCOUNT + '-' + AWS_REGION + '-dest'
+    RESTORE_BKT = PROJECT_NAME + '-' + AWS_ACCOUNT + '-' + AWS_REGION + '-restore'
+    
+    print(f" Source bucket provided : {SRC_BKT}")
+    print(f" Restore bucket provided : {RESTORE_BKT}")
 
-    tarFileName = resp['Item']['TarFileName']
-    # Check if tarFileName is a dictionary
-    if isinstance(tarFileName, dict):
-    # Extract the filename from the dictionary
-        tarFileName = list(tarFileName.values())[0]
+    # Split by comma in case multiple file search
+    REQUESTED_FILENAME_SEARCH = [f.strip() for f in REQUESTED_FILENAME_LIST.split(',')]
 
-    print(f" tarFileName extracted from dynamodb : {tarFileName}")
-    src_bkt ='{PROJECT_NAME}-'+{AWS_ACCOUNT}+'-'+{AWS_REGION}+'-dest'
-    restore_bkt ='{PROJECT_NAME}-'+{AWS_ACCOUNT}+'-'+{AWS_REGION}+'-restore'
+    for SEARCH_FILE_NAME in REQUESTED_FILENAME_SEARCH:
+        print(f" Requested file name for search : {SEARCH_FILE_NAME}")
+        resp = get_archive_details(SEARCH_FILE_NAME,ARCHIVAL_DYNAMODB_MASTER_TABLE)
+        print(resp['Item'])
 
-    initiate_restore(src_bkt,tarFileName, requested_filename,retrieval_tier,PROJECT_NAME,restore_bkt,TOPIC_ARN)
+        TAR_FILE_NAME= resp['Item']['TarFileName']
+        # Check if tarFileName is a dictionary
+        if isinstance(TAR_FILE_NAME, dict):
+        # Extract the filename from the dictionary
+            TAR_FILE_NAME = list(TAR_FILE_NAME.values())[0]
+
+        print(f" Requested file: {SEARCH_FILE_NAME} stored in tarFileName : {TAR_FILE_NAME}, Start the restore process")
+        
+        initiate_restore(SRC_BKT,TAR_FILE_NAME, SEARCH_FILE_NAME,RETRIEVAL_TIER,PROJECT_NAME,RESTORE_BKT,TOPIC_ARN)
 
     return {
         'statusCode': 200,
-        'body': json.dumps('Restore Request process  successfully!')
+        'body': json.dumps('Restore Request process successfully!')
     }
 
 def get_archive_details(requested_filename,table_name):
@@ -45,6 +54,11 @@ def get_archive_details(requested_filename,table_name):
 
 def initiate_restore(src_bkt,tarFileName, requested_filename,retrieval_tier,PROJECT_NAME,restore_bkt,TOPIC_ARN):
     print('Within initiate restore!!')
+    print(f" src bucket : {src_bkt}")
+    print(f" tarFileName : {tarFileName}")
+    print(f" requested_filename : {requested_filename}")
+    print(f" retrieval_tier : {retrieval_tier}")
+    print(f" Restore bucket : {restore_bkt}")
     try:
         s3 = boto3.resource('s3')
         obj = s3.Object(src_bkt, tarFileName)
@@ -95,7 +109,7 @@ def record_restoration(src_bkt, tarFileName, requested_filename,PROJECT_NAME):
     dynamodb_client = boto3.client('dynamodb')
     dynamodb_client.batch_write_item(
         RequestItems={
-            {PROJECT_NAME}+'_restore_tracker': [
+            PROJECT_NAME + '_restore_tracker': [
                 {
                     'PutRequest': {
                         'Item': {
@@ -109,7 +123,7 @@ def record_restoration(src_bkt, tarFileName, requested_filename,PROJECT_NAME):
         }
     )
 
-def submit_batch_job(s3_bucket, aws_account,aws_region, tarFileName,requested_filename, topic_arn,PROJECT_NAME,restore_bkt):
+def submit_batch_job(s3_bucket, aws_account,aws_region, tarFileName,requested_filename, topic_arn,project_name,restore_bkt):
     print('Job Submitted for restoring the file!!')
     job_queue = os.environ['JOB_QUEUE']
     job_definition = os.environ['JOB_DEFINITION']
@@ -122,7 +136,7 @@ def submit_batch_job(s3_bucket, aws_account,aws_region, tarFileName,requested_fi
         containerOverrides={
             'command': ['python3', 'restore.py'],
             'environment': [
-                {'name': 'PROJECT_NAME', 'value': PROJECT_NAME},
+                {'name': 'PROJECT_NAME', 'value': project_name},
                 {'name': 'SRC_BUCKET_NAME', 'value': s3_bucket},
                 {'name': 'RESTORE_BUCKET_NAME', 'value': restore_bkt},
                 {'name': 'AWS_ACCOUNT', 'value': aws_account},

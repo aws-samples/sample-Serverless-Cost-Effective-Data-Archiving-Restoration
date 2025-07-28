@@ -13,7 +13,7 @@ SOURCE_PREFIX = os.environ['PREFIX']+"/"
 now = datetime.datetime.now()
 FILE_SIZE_LIMIT = int(os.environ['ARCHIVE_SIZE']) 
 FILE_COUNT_LIMIT = int(os.environ['FILE_COUNT'])
-DYNAMODB_TABLE_NAME = int(os.environ['table_name'])
+DYNAMODB_TABLE_NAME = os.environ['PROJECT_NAME'] + '_archive_master'
 
 print(f"Selected Project Name: {PROJECT_NAME}")
 print(f"Source Bucket: {SOURCE_BUCKET}")

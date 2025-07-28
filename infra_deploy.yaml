@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: 'AWS CloudFormation template that builds end to end Object demo Pipeline with security best practices'
+  demo Pipeline '
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -91,303 +92,33 @@ Parameters:
       - FARGATE_SPOT
     Default: FARGATE
   RestoreNotification:
+    Default: ABC@ABC.COM
     Description: Email address to notify on successful restoration of the files
     Type: String
 
 Resources:
-  # KMS Keys for encryption
-  S3LoggingKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for S3 bucket encryption
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-            Action: kms:*
-            Resource: '*'
-          - Effect: Allow
-            Principal:
-              Service: s3.amazonaws.com
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:GenerateDataKey
-            Resource: '*'
-            
-    
-  DynamoDBKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for DynamoDB encryption
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-            Action: kms:*
-            Resource: '*'
-          - Effect: Allow
-            Principal:
-              Service: dynamodb.amazonaws.com
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:GenerateDataKey
-            Resource: '*'
-
-  LogKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for CloudWatch Logs encryption
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-            Action: kms:*
-            Resource: '*'
-          - Effect: Allow
-            Principal:
-              Service: logs.amazonaws.com
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:GenerateDataKey
-            Resource: '*'
-
-  SNSKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for SNS encryption
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-            Action: kms:*
-            Resource: '*'
-          - Effect: Allow
-            Principal:
-              Service: sns.amazonaws.com
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:GenerateDataKey
-            Resource: '*'
-
-  # S3 Logging Bucket
-  ArchiveLoggingBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-logs'
-      OwnershipControls:
-        Rules:
-         - ObjectOwnership: BucketOwnerPreferred
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LoggingConfiguration:
-          DestinationBucketName: !Ref LoggingMonitorBucket
-          LogFilePrefix: access-logs/
-      ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: aws:kms
-            KMSMasterKeyID: !Ref S3LoggingKey
-
-  # bucket for monitoring the logging bucket
-  LoggingMonitorBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-monitor'
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerPreferred
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: aws:kms
-            KMSMasterKeyID: !Ref S3LoggingKey
-      LoggingConfiguration:                                
-        DestinationBucketName: !Ref LoggingMonitorBucket   
-        LogFilePrefix: audit/
-    
-  ArchiveLoggingBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref ArchiveLoggingBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: EnforceTLS
-            Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-logs
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-logs/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-
-  LoggingMonitorBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref LoggingMonitorBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: EnforceTLS
-            Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-monitor
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-monitor/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-
-  # VPC Endpoints for secure communication
-  S3Endpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:ListBucket
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-*
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-*/*
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
-      VpcId: !Select [0, !Ref VPCSelect]
-      VpcEndpointType: Gateway
-      RouteTableIds:
-        - !ImportValue PrivateRouteTable1
-        - !ImportValue PrivateRouteTable2
-
-  DynamoDBEndpoint:
-    Type: AWS::EC2::VPCEndpoint
-    Properties:
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action:
-              - dynamodb:GetItem
-              - dynamodb:PutItem
-              - dynamodb:UpdateItem
-              - dynamodb:DeleteItem
-              - dynamodb:Query
-              - dynamodb:Scan
-            Resource:
-              - !GetAtt ArchiveMasterTable.Arn
-              - !GetAtt RestoreTrackerTable.Arn
-      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
-      VpcId: !Select [0, !Ref VPCSelect]
-      VpcEndpointType: Gateway
-      RouteTableIds:
-        - !ImportValue PrivateRouteTable1
-        - !ImportValue PrivateRouteTable2
-
-  # ECR Repositories with immutable tags
   ArchiveMasterRepo:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: !Sub ${ProjectName}-archivemaster
       ImageScanningConfiguration:
         ScanOnPush: true
-      ImageTagMutability: IMMUTABLE
-      EncryptionConfiguration:
-        EncryptionType: KMS
-        KmsKey: !GetAtt S3LoggingKey.Arn
+
 
   ArchiverRepo:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub ${ProjectName}_archiver
+      RepositoryName: !Sub ${ProjectName}-archiver
       ImageScanningConfiguration:
         ScanOnPush: true
-      ImageTagMutability: IMMUTABLE
-      EncryptionConfiguration:
-        EncryptionType: KMS
-        KmsKey: !GetAtt S3LoggingKey.Arn
 
   RestorerRepo:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub ${ProjectName}_restorer
+      RepositoryName: !Sub ${ProjectName}-restorer
       ImageScanningConfiguration:
         ScanOnPush: true
-      ImageTagMutability: IMMUTABLE
-      EncryptionConfiguration:
-        EncryptionType: KMS
-        KmsKey: !GetAtt S3LoggingKey.Arn
-  # SQS queue for the DLQ
-  LambdaDeadLetterQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${ProjectName}-lambda-dlq
-      KmsMasterKeyId: !Ref SNSKey  # Reuse the SNS KMS key for encryption
-      MessageRetentionPeriod: 1209600  # 14 days (maximum retention)
 
-  LambdaEnvKey:
-    Type: AWS::KMS::Key
-    Properties:
-      Description: KMS key for Lambda environment variables encryption
-      EnableKeyRotation: true
-      KeyPolicy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-               AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
-            Action: 
-              - kms:CreateAlias
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:EnableKey
-              - kms:ListGrants
-              - kms:PutKeyPolicy
-              - kms:GenerateDataKey
-              - kms:Encrypt
-              - kms:Decrypt
-            Resource: '*'
-          - Effect: Allow
-            Principal:
-             Service: lambda.amazonaws.com
-            Action:
-              - kms:Encrypt
-              - kms:Decrypt
-              - kms:GenerateDataKey
-            Resource: '*'
-
-  # Lambda Functions with VPC configuration
   ArchiveLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -398,16 +129,42 @@ Resources:
       Timeout: 300
       Code: ./api-gateway-lambda/archive-lambda/
       Role: !GetAtt ArchiveLambdaRole.Arn
-      VpcConfig:
-        SubnetIds: !Ref SubnetSelect
-        SecurityGroupIds: !Ref SGSelect
       Environment:
         Variables:
-          JOB_QUEUE: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref ArchiveMasterQueue]]]]
-          JOB_DEFINITION: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref ArchiveMasterJD]]]]
-      KmsKeyArn: !GetAtt LambdaEnvKey.Arn
-      DeadLetterConfig:
-        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn 
+          JOB_QUEUE: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref ArchiveMasterQueue
+          JOB_DEFINITION: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref ArchiveMasterJD
+
+  ArchiveLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
 
   RestoreLambda:
     Type: AWS::Lambda::Function
@@ -415,203 +172,104 @@ Resources:
       FunctionName: 'restore-lambda'
       ReservedConcurrentExecutions: 10
       Handler: restore-lambda.lambda_handler
-      Runtime: python3.12
+      Runtime: python3.9
       Timeout: 300
       Code: ./api-gateway-lambda/restore-lambda/
       Role: !GetAtt RestoreLambdaRole.Arn
-      VpcConfig:
-        SubnetIds: !Ref SubnetSelect
-        SecurityGroupIds: !Ref SGSelect
       Environment:
         Variables:
-          JOB_QUEUE: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref RestorerQueue]]]]
-          JOB_DEFINITION: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref RestorerJD]]]]
+          JOB_QUEUE: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref RestorerQueue
+          JOB_DEFINITION: !Select
+            - 1
+            - !Split
+              - /
+              - !Select
+                - 5
+                - !Split
+                  - ':'
+                  - !Ref RestorerJD
           TOPIC_ARN: !Ref RestoreNotify
-      KmsKeyArn: !GetAtt LambdaEnvKey.Arn
-      DeadLetterConfig:
-        TargetArn: !GetAtt LambdaDeadLetterQueue.Arn 
 
-  # IAM Roles with least privilege
-  ArchiveLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ArchiveLambdaPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - batch:SubmitJob
-                  - batch:DescribeJobs
-                Resource: 
-                  - !Sub arn:aws:batch:${AWS::Region}:${AWS::AccountId}:job-definition/${ProjectName}*
-                  - !Sub arn:aws:batch:${AWS::Region}:${AWS::AccountId}:job-queue/${ProjectName}*
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/archive-lambda:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
-                
   RestoreLambdaRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: RestoreLambdaPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - batch:SubmitJob
-                  - batch:DescribeJobs
-                Resource: 
-                  - !Sub arn:aws:batch:${AWS::Region}:${AWS::AccountId}:job-definition/${ProjectName}*
-                  - !Sub arn:aws:batch:${AWS::Region}:${AWS::AccountId}:job-queue/${ProjectName}*
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src/*
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest/*
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore/*
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:Query
-                  - dynamodb:DeleteItem
-                Resource:
-                  - !GetAtt ArchiveMasterTable.Arn
-                  - !GetAtt RestoreTrackerTable.Arn
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !Ref RestoreNotify
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/restore-lambda:*
-              - Effect: Allow
-                Action:
-                  - ec2:CreateNetworkInterface
-                Resource:
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/* 
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeNetworkInterfaces
-                  - ec2:DeleteNetworkInterface
-                Resource: 
-                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
-                
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+
+  
+
+  RestoreCompleteLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+
   BatchServiceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
-              Service: batch.amazonaws.com
-            Action: sts:AssumeRole
+              Service:
+                - batch.amazonaws.com
+            Action:
+              - sts:AssumeRole
       ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
               Service:
                 - batch.amazonaws.com
                 - ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: TaskExecutionPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src/*
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest/*
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore
-                  - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore/*
-              - Effect: Allow
-                Action:
-                  - dynamodb:GetItem
-                  - dynamodb:PutItem
-                  - dynamodb:UpdateItem
-                  - dynamodb:Query
-                  - dynamodb:DeleteItem
-                Resource:
-                  - !GetAtt ArchiveMasterTable.Arn
-                  - !GetAtt RestoreTrackerTable.Arn
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: !Ref RestoreNotify
-              - Effect: Allow
-                Action:
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:BatchCheckLayerAvailability
-                Resource:
-                  - !GetAtt ArchiveMasterRepo.Arn
-                  - !GetAtt ArchiverRepo.Arn
-                  - !GetAtt RestorerRepo.Arn
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/batch/*
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AWSBatchFullAccess
+        - arn:aws:iam::aws:policy/AmazonSNSFullAccess
 
-  # Batch Compute Environments
   ArchiveMasterEnv:
     DependsOn: BatchServiceRole
     Type: AWS::Batch::ComputeEnvironment
@@ -626,35 +284,6 @@ Resources:
       State: ENABLED
       Type: MANAGED
 
-  ArchiverEnv:
-    DependsOn: BatchServiceRole
-    Type: AWS::Batch::ComputeEnvironment
-    Properties:
-      ComputeEnvironmentName: archiver-env
-      ComputeResources:
-        Type: !Ref ENVFargatetype
-        MaxvCpus: !Ref MaxCPUs
-        Subnets: !Ref SubnetSelect
-        SecurityGroupIds: !Ref SGSelect
-      ServiceRole: !GetAtt BatchServiceRole.Arn
-      State: ENABLED
-      Type: MANAGED
-
-  RestorerEnv:
-    DependsOn: BatchServiceRole
-    Type: AWS::Batch::ComputeEnvironment
-    Properties:
-      ComputeEnvironmentName: restorer-env
-      ComputeResources:
-        Type: !Ref ENVFargatetype
-        MaxvCpus: !Ref MaxCPUs
-        Subnets: !Ref SubnetSelect
-        SecurityGroupIds: !Ref SGSelect
-      ServiceRole: !GetAtt BatchServiceRole.Arn
-      State: ENABLED
-      Type: MANAGED
-
-  # Batch Job Queues
   ArchiveMasterQueue:
     DependsOn: ArchiveMasterEnv
     Type: AWS::Batch::JobQueue
@@ -665,27 +294,6 @@ Resources:
       JobQueueName: 'archive-master-queue'
       Priority: 1
 
-  ArchiverQueue:
-    DependsOn: ArchiverEnv
-    Type: AWS::Batch::JobQueue
-    Properties:
-      ComputeEnvironmentOrder:
-        - ComputeEnvironment: archiver-env
-          Order: 1
-      JobQueueName: archiver-queue
-      Priority: 1
-
-  RestorerQueue:
-    DependsOn: RestorerEnv
-    Type: AWS::Batch::JobQueue
-    Properties:
-      ComputeEnvironmentOrder:
-        - ComputeEnvironment: restorer-env
-          Order: 1
-      JobQueueName: 'restorer-queue'
-      Priority: 1
-
-  # Batch Job Definitions
   ArchiveMasterJD:
     DependsOn: BatchServiceRole
     Type: AWS::Batch::JobDefinition
@@ -703,15 +311,55 @@ Resources:
         JobRoleArn: !GetAtt TaskExecutionRole.Arn
         Environment:
           - Name: JOB_DEFINITION
-            Value: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref ArchiverJD]]]]
+            Value: !Select
+              - 1
+              - !Split
+                - /
+                - !Select
+                  - 5
+                  - !Split
+                    - ':'
+                    - !Ref ArchiverJD
           - Name: JOB_QUEUE
-            Value: !Select [1, !Split ["/", !Select [5, !Split [":", !Ref ArchiverQueue]]]]
+            Value: !Select
+              - 1
+              - !Split
+                - /
+                - !Select
+                  - 5
+                  - !Split
+                    - ':'
+                    - !Ref ArchiverQueue
           - Name: AWS_REGION
             Value: !Ref AWS::Region
       JobDefinitionName: 'archive-master-jd'
       PlatformCapabilities:
         - FARGATE
       Type: container
+
+  ArchiverEnv:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: archiver-env
+      ComputeResources:
+        Type: !Ref ENVFargatetype
+        MaxvCpus: !Ref MaxCPUs
+        Subnets: !Ref SubnetSelect
+        SecurityGroupIds: !Ref SGSelect
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+  ArchiverQueue:
+    DependsOn: ArchiverEnv
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: archiver-env
+          Order: 1
+      JobQueueName: archiver-queue
+      Priority: 1
 
   ArchiverJD:
     DependsOn: BatchServiceRole
@@ -736,6 +384,30 @@ Resources:
         - FARGATE
       Type: container
 
+  RestorerEnv:
+    DependsOn: BatchServiceRole
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: restorer-env
+      ComputeResources:
+        Type: !Ref ENVFargatetype
+        MaxvCpus: !Ref MaxCPUs
+        Subnets: !Ref SubnetSelect
+        SecurityGroupIds: !Ref SGSelect
+      ServiceRole: !GetAtt BatchServiceRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+  RestorerQueue:
+    DependsOn: RestorerEnv
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: restorer-env
+          Order: 1
+      JobQueueName: 'restorer-queue'
+      Priority: 1
+
   RestorerJD:
     DependsOn: BatchServiceRole
     Type: AWS::Batch::JobDefinition
@@ -756,48 +428,12 @@ Resources:
         - FARGATE
       Type: container
 
-  # API Gateway with Cognito Authorizer
-  CognitoUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub ${ProjectName}-user-pool
-      AutoVerifiedAttributes:
-        - email
-      MfaConfiguration: "OPTIONAL"
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 12
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: true
-          RequireUppercase: true
-
-  CognitoUserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    Properties:
-      ClientName: !Sub ${ProjectName}-app-client
-      UserPoolId: !Ref CognitoUserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-
   ObjectdemoApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: Object demo API
       Description: API used for Object demo
       FailOnWarnings: true
-
-  ObjectdemoAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: CognitoAuthorizer
-      Type: COGNITO_USER_POOLS
-      IdentitySource: method.request.header.Authorization
-      RestApiId: !Ref ObjectdemoApi
-      ProviderARNs:
-        - !GetAtt CognitoUserPool.Arn
 
   ObjectdemoUsagePlan:
     Type: AWS::ApiGateway::UsagePlan
@@ -813,7 +449,7 @@ Resources:
         BurstLimit: 200
         RateLimit: 100
 
-  Permission:
+  ArchiveLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:invokeFunction
@@ -871,19 +507,12 @@ Resources:
                   - logs:PutLogEvents
                   - logs:GetLogEvents
                   - logs:FilterLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/*
+                Resource: '*'
 
   ObjectdemoAccount:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ObjectdemoCloudWatchLogsRole.Arn
-
-  AccessLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      RetentionInDays: 30
-      KmsKeyId: !Ref LogKey
-
   ObjectdemoApiStage:
     DependsOn:
       - ObjectdemoAccount
@@ -898,14 +527,13 @@ Resources:
           HttpMethod: '*'
           LoggingLevel: INFO
           ResourcePath: /*
-          CachingEnabled: true
-          CacheTtlInSeconds: 300
-          CacheDataEncrypted: true
-      CacheClusterEnabled: true
-      CacheClusterSize: "0.5" 
       RestApiId: !Ref ObjectdemoApi
       StageName: LATEST
-      TracingEnabled: true
+
+  AccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -922,13 +550,11 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       ParentId: !GetAtt ObjectdemoApi.RootResourceId
       PathPart: archive
-
   ArchiveRequest:
-    DependsOn: Permission
+    DependsOn: ArchiveLambdaPermission
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ObjectdemoAuthorizer
+      AuthorizationType: NONE
       HttpMethod: POST
       Integration:
         Type: AWS
@@ -955,13 +581,11 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       ParentId: !GetAtt ObjectdemoApi.RootResourceId
       PathPart: restore
-
   RestoreRequest:
     DependsOn: RestoreLambdaPermission
     Type: AWS::ApiGateway::Method
     Properties:
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref ObjectdemoAuthorizer
+      AuthorizationType: NONE
       HttpMethod: POST
       Integration:
         Type: AWS
@@ -982,119 +606,6 @@ Resources:
       MethodResponses:
         - StatusCode: 200
 
-  # S3 Buckets with encryption, logging, and TLS enforcement
-  ArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-src'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LoggingConfiguration:
-        DestinationBucketName: !Ref ArchiveLoggingBucket
-        LogFilePrefix: access-log/src/
-      ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: aws:kms
-            KMSMasterKeyID: !Ref S3LoggingKey
-
-  ArchiveBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref ArchiveBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: EnforceTLS
-            Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-src/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-
-  DestArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LoggingConfiguration:
-        DestinationBucketName: !Ref ArchiveLoggingBucket
-        LogFilePrefix: access-log/dest/
-      ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: aws:kms
-            KMSMasterKeyID: !Ref S3LoggingKey
-
-  DestArchiveBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref DestArchiveBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: EnforceTLS
-            Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-
-  RestoreBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LoggingConfiguration:
-        DestinationBucketName: !Ref ArchiveLoggingBucket
-        LogFilePrefix: access-log/restore/
-      ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: aws:kms
-            KMSMasterKeyID: !Ref S3LoggingKey
-
-  RestoreBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref RestoreBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: EnforceTLS
-            Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource:
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore
-              - !Sub arn:aws:s3:::${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-
-  # DynamoDB Tables with KMS encryption and PITR
   ArchiveMasterTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -1102,8 +613,6 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       SSESpecification:
         SSEEnabled: true
-        SSEType: KMS
-        KMSMasterKeyId: !Ref DynamoDBKey
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
@@ -1120,8 +629,6 @@ Resources:
       BillingMode: PROVISIONED
       SSESpecification:
         SSEEnabled: true
-        SSEType: KMS
-        KMSMasterKeyId: !Ref DynamoDBKey
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       ProvisionedThroughput:
@@ -1137,16 +644,50 @@ Resources:
           KeyType: HASH
         - AttributeName: key
           KeyType: RANGE
-
-  # SNS Topic with KMS encryption
+    
   RestoreNotify:
     Type: AWS::SNS::Topic
     Properties:
-      KmsMasterKeyId: !Ref SNSKey
       Subscription:
         - Endpoint: !Ref RestoreNotification
           Protocol: email
 
+  ArchiveBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-src'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  DestArchiveBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  RestoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore'
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true   
 Outputs:
   RootUrl:
     Description: Root URL of the Object demo API
@@ -1157,9 +698,3 @@ Outputs:
         - .execute-api.
         - !Ref AWS::Region
         - .amazonaws.com
-  CognitoUserPoolId:
-    Description: Cognito User Pool ID for API authentication
-    Value: !Ref CognitoUserPool
-  CognitoAppClientId:
-    Description: Cognito App Client ID for API authentication
-    Value: !Ref CognitoUserPoolClient
