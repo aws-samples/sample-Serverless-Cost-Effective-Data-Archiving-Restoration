@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'AWS CloudFormation sample template that builds end to end Object
+Description: 'AWS CloudFormation template that builds end to end Object demo Pipeline with security best practices'
   demo Pipeline '
 
 Metadata:
@@ -92,7 +92,7 @@ Parameters:
       - FARGATE_SPOT
     Default: FARGATE
   RestoreNotification:
-    Default: pratapkn@amazon.com
+    Default: ABC@ABC.COM
     Description: Email address to notify on successful restoration of the files
     Type: String
 

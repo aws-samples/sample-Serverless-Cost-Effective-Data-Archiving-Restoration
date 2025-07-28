@@ -1,9 +1,12 @@
 # Problem Statement.
-A reputed financial company generates billions of files in an S3 bucket from various sources. As part of a monthly workflow, a quality check system validates these files and generates a summary report for executives. After manual approval, all files are archived into S3 Deep Archive to reduce storage costs. Currently, an S3 lifecycle event is configured to move the files into Deep Archive on a set date (the 10th of each month). However, this approach incurs high archival costs due to S3 transition charges.
+A large enterprise generates massive volumes of data files in Amazon S3 from multiple sources. These files undergo a monthly quality validation process, resulting in a summary report for management review. Following approval, the files need to be archived to optimize storage costs. Currently, an S3 lifecycle rule automatically transitions these files to S3 Deep Archive on a fixed date each month. However, this automated approach leads to increased transition costs due to the bulk movement of data.
+
 
 # Discovery Phase.
-  1. During discovery phase , it has been identified that files are rarly accessed by user and users are ready to wait for 24hr to restore files from archival.
-  2. Archival process auto triggered by cronjob (10th of every month 3:00 AM) , in case archival process does not triggered by QualityCheck System 
+  Key findings from the assessment:
+1. Historical data shows minimal file access patterns after the initial processing
+2. Users accept a 24-hour retrieval time for archived files when needed
+3. A scheduled backup process (cron job) exists as a failsafe mechanism to ensure archival, in case the primary Quality Check System doesn't initiate the process
 
 # Business Requirement.
    1. Build completely a Serverless Solution.
@@ -86,57 +89,6 @@ This solution creates a fully automated pipeline that handles archiving and rest
 ---
 
 This end-to-end serverless solution ensures secure, cost-efficient, and scalable archiving and restoration of files using modern AWS cloud-native services.
-
-
-## 🔐 Security Considerations
-
-This solution adheres to AWS security best practices to ensure the confidentiality, integrity, and availability of data throughout the archiving and restoration lifecycle.
-
-### ✅ IAM and Least Privilege Access
-
-- All Lambda functions, AWS Batch jobs, and other resources use least-privilege IAM roles.
-- IAM roles are scoped to only necessary permissions for services like S3, DynamoDB, SNS, and ECR.
-
-### ✅ Network Security
-
-- AWS Batch jobs use `awsvpc` mode and run in **private subnets** within a VPC.
-- Lambda functions are deployed in the same VPC with restricted access.
-- Security Groups are tightly controlled, typically allowing only HTTPS (443) outbound traffic.
-
-### ✅ Data Protection
-
-- Data at rest is stored in Amazon S3 with **Glacier Deep Archive**, encrypted using **SSE-S3** or **SSE-KMS**.
-- All S3 interactions occur over **HTTPS**, ensuring data-in-transit encryption.
-- Buckets enforce encryption via policies or default settings.
-
-### ✅ API Security
-
-- API Gateway endpoints support integration with IAM, API keys, or Amazon Cognito (based on implementation).
-- Request validation and strict input checks help block malformed or malicious payloads.
-
-### ✅ Monitoring and Logging
-
-- All key services (Lambda, Batch, API Gateway) are integrated with **CloudWatch Logs**.
-- **CloudTrail** is used for auditing and tracking API activity.
-
-### ✅ Notifications and Alerts
-
-- Notifications are sent via Amazon SNS with access managed through topic policies.
-- Optional integration with CloudWatch alarms enables proactive alerting.
-
-### ✅ Secure Container Execution
-
-- Docker images are based on minimal, secure base images.
-- Images are scanned for vulnerabilities using **Amazon ECR image scanning** before deployment.
-
-### ✅ Secrets and Configuration
-
-- No secrets or credentials are hardcoded.
-- Sensitive configurations are passed securely using **AWS SAM parameters**.
-- Use of **AWS Secrets Manager** or **SSM Parameter Store** is recommended for future secrets management.
-
-
-This security model follows the AWS Well-Architected Framework’s Security Pillar and supports a secure, auditable, and resilient deployment.
 
 
 ## Prerequisites
@@ -268,7 +220,7 @@ curl --location --request POST 'https://x08ilu6no7.execute-api.us-east-1.amazona
 "account": "12345678",
 "region": "us-east-1",
 "retrieval_tier": "Expedited",
-"sns_topic_arn": "arn:aws:sns:us-east-1:123456789:storagetest-RestoreNotify-nciI6AHKbsrn"
+"sns_topic_arn": "arn"
 }'
 
 ```
