@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'AWS CloudFormation sample template that builds end to end Object
-  demo Pipeline '
+Description: 'AWS CloudFormation template that builds end to end Object Pipeline '
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -57,7 +56,7 @@ Parameters:
     Description: Select Security group
     Type: List<AWS::EC2::SecurityGroup::Id>
   JobVCPUs:
-    Description: Eneter number of vCPUs for a Job
+    Description: Enter number of vCPUs for a Job
     Type: String
     AllowedValues:
       - 0.25
@@ -67,7 +66,7 @@ Parameters:
       - 4
     Default: 1
   JobMemory:
-    Description: Eneter Memory(GB) required for a Job
+    Description: Enter Memory(GB) required for a Job
     Type: String
     AllowedValues:
       - 512
@@ -92,7 +91,7 @@ Parameters:
       - FARGATE_SPOT
     Default: FARGATE
   RestoreNotification:
-    Default: pratapkn@amazon.com
+    Default: abc@abc.com
     Description: Email address to notify on successful restoration of the files
     Type: String
 
@@ -103,12 +102,6 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-archivemaster
       ImageScanningConfiguration:
         ScanOnPush: true
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W28
-            reason: Need to provide explicit name as we have specific procedure to upload
-              the image
 
   ArchiverRepo:
     Type: AWS::ECR::Repository
@@ -662,7 +655,7 @@ Resources:
       Subscription:
         - Endpoint: !Ref RestoreNotification
           Protocol: email
-          
+
 Outputs:
   RootUrl:
     Description: Root URL of the Object demo API
