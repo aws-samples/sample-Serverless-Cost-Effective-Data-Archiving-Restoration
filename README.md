@@ -84,7 +84,8 @@ This solution creates a fully automated pipeline that handles archiving and rest
    - Uploads them to a dedicated restore S3 bucket.
 
 9. **Notification via SNS**  
-   - Sends an email notification via Amazon SNS when user request for files .user receive nofication for each request about exact restoration status.
+   - Sends an email notification via Amazon SNS when user request for files 
+   - user receive nofication for each request about exact restoration status.
 
 ---
 
@@ -104,7 +105,7 @@ https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
 ## Download the source from the repository
 Clone the repository using the git command mentioned below or use any of your preferred methods of cloning the repository
 ```
-git clone git@ssh.gitlab.aws.dev:USER/serverless-demo.git 
+git clone https://github.com/aws-samples/sample-Serverless-Cost-Effective-Data-Archiving-Restoration.git 
 ```
 
 ## Infrastructure Setup
@@ -169,27 +170,29 @@ curl --location --request POST '<<API Gateway Endpoint>>/live/archive' \
 --header 'Content-Type: application/json' \
 --data-raw '{
 "project_name": "<Project Name>",
-"bucket_name": "<<sorce Bucket Name>>",
-"prefix": "<<S3 Prefix you like to Fuse>>",
-"file_count": <<Number of file count you like to archive>>,
-"archive_size": <<Size Cap in MB>>,
-"account": "<Account number of ECR>",
+"src_bucket_name": "<<Source Bucket Name>>",
+"dest_bucket_name": "<<Destination Bucket Name>>",
+"prefix": "<<S3 Prefix>>",
+"file_count": <<Number of file count you like to zip>>,
+"archive_size": <<Size Cap in Bytes>>,
+"account": "<<ECR Account number>>",
 "region": "<<AWS Region>>",
 "storage_class": "<<Storage Class>>",
-"output_prefix": "<<output file name>>"
-}'
+"output_prefix": "<<Output FileName>>"
+}’
 
 Command with sample data
 
-curl --location --request POST 'https://x08ilu6no7.execute-api.us-east-1.amazonaws.com/LATEST/archive' \
+curl --location --request POST 'https://test123.execute-api.us-east-1.amazonaws.com/LATEST/archive' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-"project_name": "amazon",
-"bucket_name": "amazon-1234566678-us-east-1-src",
-"prefix": "20250713",
+"project_name": "amazon"
+"src_bucket_name": "amazon-1234567890-us-east-1_src",
+"dest_bucket_name": "amazon-1234567890-us-east-1_dest",
+"prefix": "20250410",
 "file_count": 50000,
-"archive_size": 500,
-"account": "12345566778",
+"archive_size": 500, 
+"account": "1234567890",
 "region": "us-east-1",
 "storage_class": "GLACIER",
 "output_prefix": "amazon-20240410"
@@ -204,26 +207,33 @@ curl --location --request POST '<<API Gateway Endpoint>>/latest/restore' \
 --data-raw '{
 "project_name": "<Project Name>",
 "filename": "<<file name to Restore>>",
-"account": "<Account number of ECR>",
+"dest_bucket_name": <<destination bucket>>,
+"restore_bucket_name": <<Restore bucket>>,
+"account": "<<ECR Account number>>",
 "region": "<<AWS Region>>",
 "retrieval_tier": "<<Retrieval Tier>>",
-"sns_topic_arn": "<<sns topic arn>>"
+"sns_topic_arn": "<<sns topic arn to receive email>>"
 }'
+
 
 Command with sample data
 
-curl --location --request POST 'https://x08ilu6no7.execute-api.us-east-1.amazonaws.com/LATEST/restore' \
+curl --location --request POST 'https://test123.execute-api.ap-south-1.amazonaws.com/LATEST/restore' \
 --header 'Content-Type: application/json' \
 --data-raw '{
 "project_name": "amazon",
-"filename": "1.txt,2.txt",
-"account": "12345678",
-"region": "us-east-1",
+"filename": "5000_20240517_003.csv",
+"dest_bucket_name": "amazon-1234567890-us-east-1_dest",
+"restore_bucket_name": "amazon-1234567890-us-east-1_restore",
+"account": "1234567890",
+"region": "us-west-1",
 "retrieval_tier": "Expedited",
-"sns_topic_arn": "arn"
+"sns_topic_arn": "ARN"
 }'
 
 ```
+# Please Note : in case multiple files needs to restore ,then provide filename with comma separated(;)
+
 # cleanUp
 The SAM CLI's delete command will prompt for confirmation before deleting resources, which is helpful to prevent accidental deletions.
 ```

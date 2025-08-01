@@ -8,15 +8,15 @@ def lambda_handler(event, context):
     print("Received Event =>", event)
     print("Received Context =>", context)
     PROJECT_NAME= event['project_name']
-    AWS_ACCOUNT= event['account']
-    AWS_REGION= event['region']
+    AWS_ACCOUNT_PROVIDED= event['account']
+    AWS_REGION_PROVIDED= event['region']
     REQUESTED_FILENAME_LIST = event['filename']
     RETRIEVAL_TIER = event['retrieval_tier']
     TOPIC_ARN = event['sns_topic_arn']
     ARCHIVAL_DYNAMODB_MASTER_TABLE= event['project_name'] + '_archive_master'
 
-    SRC_BKT= PROJECT_NAME + '-' + AWS_ACCOUNT + '-' + AWS_REGION + '-dest'
-    RESTORE_BKT = PROJECT_NAME + '-' + AWS_ACCOUNT + '-' + AWS_REGION + '-restore'
+    SRC_BKT= event['dest_bucket_name']
+    RESTORE_BKT = event['restore_bucket_name']
     
     print(f" Source bucket provided : {SRC_BKT}")
     print(f" Restore bucket provided : {RESTORE_BKT}")
@@ -37,7 +37,7 @@ def lambda_handler(event, context):
 
         print(f" Requested file: {SEARCH_FILE_NAME} stored in tarFileName : {TAR_FILE_NAME}, Start the restore process")
         
-        initiate_restore(SRC_BKT,TAR_FILE_NAME, SEARCH_FILE_NAME,RETRIEVAL_TIER,PROJECT_NAME,RESTORE_BKT,TOPIC_ARN)
+        initiate_restore(AWS_ACCOUNT_PROVIDED,AWS_REGION_PROVIDED,SRC_BKT,TAR_FILE_NAME, SEARCH_FILE_NAME,RETRIEVAL_TIER,PROJECT_NAME,RESTORE_BKT,TOPIC_ARN)
 
     return {
         'statusCode': 200,
@@ -52,7 +52,7 @@ def get_archive_details(requested_filename,table_name):
     )
     return response
 
-def initiate_restore(src_bkt,tarFileName, requested_filename,retrieval_tier,PROJECT_NAME,restore_bkt,TOPIC_ARN):
+def initiate_restore(AWS_ACCOUNT_PROVIDED,AWS_REGION_PROVIDED,src_bkt,tarFileName, requested_filename,retrieval_tier,PROJECT_NAME,restore_bkt,TOPIC_ARN):
     print('Within initiate restore!!')
     print(f" src bucket : {src_bkt}")
     print(f" tarFileName : {tarFileName}")
@@ -101,7 +101,7 @@ def initiate_restore(src_bkt,tarFileName, requested_filename,retrieval_tier,PROJ
             record_restoration(src_bkt, tarFileName, requested_filename,PROJECT_NAME)
         else:
             print('Request for already restored archive')
-            submit_batch_job(src_bkt, os.environ['AWS_'],os.environ['AWS_REGION'], tarFileName, requested_filename, os.environ['TOPIC_ARN'],PROJECT_NAME,restore_bkt)
+            submit_batch_job(AWS_ACCOUNT_PROVIDED,AWS_REGION_PROVIDED,src_bkt, tarFileName, requested_filename, os.environ['TOPIC_ARN'],PROJECT_NAME,restore_bkt)
     except Exception as e:
         print(e)
 
@@ -123,7 +123,7 @@ def record_restoration(src_bkt, tarFileName, requested_filename,PROJECT_NAME):
         }
     )
 
-def submit_batch_job(s3_bucket, aws_account,aws_region, tarFileName,requested_filename, topic_arn,project_name,restore_bkt):
+def submit_batch_job(AWS_ACCOUNT_PROVIDED,AWS_REGION_PROVIDED,s3_bucket, tarFileName,requested_filename, topic_arn,project_name,restore_bkt):
     print('Job Submitted for restoring the file!!')
     job_queue = os.environ['JOB_QUEUE']
     job_definition = os.environ['JOB_DEFINITION']
@@ -139,8 +139,8 @@ def submit_batch_job(s3_bucket, aws_account,aws_region, tarFileName,requested_fi
                 {'name': 'PROJECT_NAME', 'value': project_name},
                 {'name': 'SRC_BUCKET_NAME', 'value': s3_bucket},
                 {'name': 'RESTORE_BUCKET_NAME', 'value': restore_bkt},
-                {'name': 'AWS_ACCOUNT', 'value': aws_account},
-                {'name': 'AWS_REGION', 'value': aws_region},
+                {'name': 'AWS_ACCOUNT', 'value': AWS_ACCOUNT_PROVIDED},
+                {'name': 'AWS_REGION', 'value': AWS_REGION_PROVIDED},
                 {'name': 'ARCHIVE_KEY', 'value': tarFileName},
                 {'name': 'KEY', 'value': requested_filename},
                 {'name': 'TOPIC_ARN', 'value': topic_arn}

@@ -15,8 +15,8 @@ def submit_batch_job(event):
     #FILE_SIZE_LIMIT = int(os.environ['ARCHIVE_SIZE']) 
     env = [
         {'name': 'PROJECT_NAME', 'value': event['project_name']},
-        {'name': 'SRC_BUCKET_NAME', 'value': event['bucket_name']},
-        {'name': 'DEST_BUCKET_NAME', 'value': event['bucket_name'][:-3] + 'dest'},
+        {'name': 'SRC_BUCKET_NAME', 'value': event['src_bucket_name']},
+        {'name': 'DEST_BUCKET_NAME', 'value': event['dest_bucket_name']},
         {'name': 'AWS_ACCOUNT', 'value': event['account']},
         {'name': 'AWS_REGION', 'value': event['region']},
         {'name': 'PREFIX', 'value': event['prefix']},

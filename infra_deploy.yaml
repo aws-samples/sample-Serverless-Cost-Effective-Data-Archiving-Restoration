@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'AWS CloudFormation template that builds end to end Object demo Pipeline with security best practices'
-  demo Pipeline '
+Description: 'AWS CloudFormation template that builds end to end Object Pipeline '
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -92,7 +91,7 @@ Parameters:
       - FARGATE_SPOT
     Default: FARGATE
   RestoreNotification:
-    Default: ABC@ABC.COM
+    Default: abc@abc.com
     Description: Email address to notify on successful restoration of the files
     Type: String
 
@@ -103,7 +102,6 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-archivemaster
       ImageScanningConfiguration:
         ScanOnPush: true
-
 
   ArchiverRepo:
     Type: AWS::ECR::Repository
@@ -118,14 +116,14 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-restorer
       ImageScanningConfiguration:
         ScanOnPush: true
-
+  
   ArchiveLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: 'archive-lambda'
       ReservedConcurrentExecutions: 10
       Handler: archive-lambda.lambda_handler
-      Runtime: python3.12
+      Runtime: python3.9
       Timeout: 300
       Code: ./api-gateway-lambda/archive-lambda/
       Role: !GetAtt ArchiveLambdaRole.Arn
@@ -197,6 +195,7 @@ Resources:
                   - ':'
                   - !Ref RestorerJD
           TOPIC_ARN: !Ref RestoreNotify
+
 
   RestoreLambdaRole:
     Type: AWS::IAM::Role
@@ -534,6 +533,11 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 7
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: Log encryption avoid no sensitive data
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -644,7 +648,7 @@ Resources:
           KeyType: HASH
         - AttributeName: key
           KeyType: RANGE
-    
+
   RestoreNotify:
     Type: AWS::SNS::Topic
     Properties:
@@ -652,42 +656,6 @@ Resources:
         - Endpoint: !Ref RestoreNotification
           Protocol: email
 
-  ArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-src'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-  DestArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-  RestoreBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true   
 Outputs:
   RootUrl:
     Description: Root URL of the Object demo API
