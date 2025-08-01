@@ -116,12 +116,6 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-archiver
       ImageScanningConfiguration:
         ScanOnPush: true
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W28
-            reason: Need to provide explicit name as we have specific procedure to upload
-              the image
 
   RestorerRepo:
     Type: AWS::ECR::Repository
@@ -129,13 +123,7 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-restorer
       ImageScanningConfiguration:
         ScanOnPush: true
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W28
-            reason: Need to provide explicit name as we have specific procedure to upload
-              the image
-
+  
   ArchiveLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -166,11 +154,6 @@ Resources:
                 - !Split
                   - ':'
                   - !Ref ArchiveMasterJD
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W89
-            reason: Just used only for POC; hence no VPC deployment for lambda
 
   ArchiveLambdaRole:
     Type: AWS::IAM::Role
@@ -219,11 +202,7 @@ Resources:
                   - ':'
                   - !Ref RestorerJD
           TOPIC_ARN: !Ref RestoreNotify
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W89
-            reason: Just used only for POC; hence no VPC deployment for lambda
+
 
   RestoreLambdaRole:
     Type: AWS::IAM::Role
@@ -491,11 +470,6 @@ Resources:
           - ':'
           - !Ref ObjectdemoApi
           - /*
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W24
-            reason: Only invoke would suffice
 
   RestoreLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -512,11 +486,6 @@ Resources:
           - ':'
           - !Ref ObjectdemoApi
           - /*
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W24
-            reason: Only invoke would suffice
 
   ObjectdemoCloudWatchLogsRole:
     Type: AWS::IAM::Role
@@ -545,11 +514,6 @@ Resources:
                   - logs:GetLogEvents
                   - logs:FilterLogEvents
                 Resource: '*'
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W11
-            reason: For now holding it for wildcard resource as per the AWS doc
 
   ObjectdemoAccount:
     Type: AWS::ApiGateway::Account
@@ -590,11 +554,7 @@ Resources:
     Properties:
       RestApiId: !Ref ObjectdemoApi
       StageName: live
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W68
-            reason: Usage plan not required for API deployment ; its experimental
+
   ArchiveResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -625,12 +585,6 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       MethodResponses:
         - StatusCode: 200
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W59
-            reason: Authorisation not required, This is experimental pipeline for customer
-              to use internally
 
   RestoreResource:
     Type: AWS::ApiGateway::Resource
@@ -662,12 +616,6 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       MethodResponses:
         - StatusCode: 200
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W59
-            reason: Authorisation not required, This is experimental pipeline for customer
-              to use internally
 
   ArchiveMasterTable:
     Type: AWS::DynamoDB::Table
@@ -684,11 +632,6 @@ Resources:
       KeySchema:
         - AttributeName: key
           KeyType: HASH
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W28
-            reason: Need a unified table to manage
 
   RestoreTrackerTable:
     Type: AWS::DynamoDB::Table
@@ -712,11 +655,6 @@ Resources:
           KeyType: HASH
         - AttributeName: key
           KeyType: RANGE
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W28
-            reason: Need a unified table to manage
 
   RestoreNotify:
     Type: AWS::SNS::Topic
@@ -724,12 +662,7 @@ Resources:
       Subscription:
         - Endpoint: !Ref RestoreNotification
           Protocol: email
-
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W47
-            reason: KMS not required for SNS topic; experimental code.  
+          
 Outputs:
   RootUrl:
     Description: Root URL of the Object demo API
