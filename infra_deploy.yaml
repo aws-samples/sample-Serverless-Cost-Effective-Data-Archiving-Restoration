@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'AWS CloudFormation template that builds end to end Object demo Pipeline with security best practices'
+Description: 'AWS CloudFormation sample template that builds end to end Object
   demo Pipeline '
 
 Metadata:
@@ -57,7 +57,7 @@ Parameters:
     Description: Select Security group
     Type: List<AWS::EC2::SecurityGroup::Id>
   JobVCPUs:
-    Description: Enter number of vCPUs for a Job
+    Description: Eneter number of vCPUs for a Job
     Type: String
     AllowedValues:
       - 0.25
@@ -67,7 +67,7 @@ Parameters:
       - 4
     Default: 1
   JobMemory:
-    Description: Enter Memory(GB) required for a Job
+    Description: Eneter Memory(GB) required for a Job
     Type: String
     AllowedValues:
       - 512
@@ -92,7 +92,7 @@ Parameters:
       - FARGATE_SPOT
     Default: FARGATE
   RestoreNotification:
-    Default: ABC@ABC.COM
+    Default: pratapkn@amazon.com
     Description: Email address to notify on successful restoration of the files
     Type: String
 
@@ -103,7 +103,12 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-archivemaster
       ImageScanningConfiguration:
         ScanOnPush: true
-
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
 
   ArchiverRepo:
     Type: AWS::ECR::Repository
@@ -111,6 +116,12 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-archiver
       ImageScanningConfiguration:
         ScanOnPush: true
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
 
   RestorerRepo:
     Type: AWS::ECR::Repository
@@ -118,6 +129,12 @@ Resources:
       RepositoryName: !Sub ${ProjectName}-restorer
       ImageScanningConfiguration:
         ScanOnPush: true
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need to provide explicit name as we have specific procedure to upload
+              the image
 
   ArchiveLambda:
     Type: AWS::Lambda::Function
@@ -125,7 +142,7 @@ Resources:
       FunctionName: 'archive-lambda'
       ReservedConcurrentExecutions: 10
       Handler: archive-lambda.lambda_handler
-      Runtime: python3.12
+      Runtime: python3.9
       Timeout: 300
       Code: ./api-gateway-lambda/archive-lambda/
       Role: !GetAtt ArchiveLambdaRole.Arn
@@ -149,6 +166,11 @@ Resources:
                 - !Split
                   - ':'
                   - !Ref ArchiveMasterJD
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: Just used only for POC; hence no VPC deployment for lambda
 
   ArchiveLambdaRole:
     Type: AWS::IAM::Role
@@ -197,6 +219,11 @@ Resources:
                   - ':'
                   - !Ref RestorerJD
           TOPIC_ARN: !Ref RestoreNotify
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W89
+            reason: Just used only for POC; hence no VPC deployment for lambda
 
   RestoreLambdaRole:
     Type: AWS::IAM::Role
@@ -464,6 +491,11 @@ Resources:
           - ':'
           - !Ref ObjectdemoApi
           - /*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W24
+            reason: Only invoke would suffice
 
   RestoreLambdaPermission:
     Type: AWS::Lambda::Permission
@@ -480,6 +512,11 @@ Resources:
           - ':'
           - !Ref ObjectdemoApi
           - /*
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W24
+            reason: Only invoke would suffice
 
   ObjectdemoCloudWatchLogsRole:
     Type: AWS::IAM::Role
@@ -508,6 +545,11 @@ Resources:
                   - logs:GetLogEvents
                   - logs:FilterLogEvents
                 Resource: '*'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W11
+            reason: For now holding it for wildcard resource as per the AWS doc
 
   ObjectdemoAccount:
     Type: AWS::ApiGateway::Account
@@ -534,6 +576,11 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 7
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: Log encryption avoid no sensitive data
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -543,7 +590,11 @@ Resources:
     Properties:
       RestApiId: !Ref ObjectdemoApi
       StageName: live
-
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W68
+            reason: Usage plan not required for API deployment ; its experimental
   ArchiveResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -574,6 +625,12 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       MethodResponses:
         - StatusCode: 200
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W59
+            reason: Authorisation not required, This is experimental pipeline for customer
+              to use internally
 
   RestoreResource:
     Type: AWS::ApiGateway::Resource
@@ -605,6 +662,12 @@ Resources:
       RestApiId: !Ref ObjectdemoApi
       MethodResponses:
         - StatusCode: 200
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W59
+            reason: Authorisation not required, This is experimental pipeline for customer
+              to use internally
 
   ArchiveMasterTable:
     Type: AWS::DynamoDB::Table
@@ -621,6 +684,11 @@ Resources:
       KeySchema:
         - AttributeName: key
           KeyType: HASH
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need a unified table to manage
 
   RestoreTrackerTable:
     Type: AWS::DynamoDB::Table
@@ -644,7 +712,12 @@ Resources:
           KeyType: HASH
         - AttributeName: key
           KeyType: RANGE
-    
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: Need a unified table to manage
+
   RestoreNotify:
     Type: AWS::SNS::Topic
     Properties:
@@ -652,42 +725,11 @@ Resources:
         - Endpoint: !Ref RestoreNotification
           Protocol: email
 
-  ArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-src'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-  DestArchiveBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-dest'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-  RestoreBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub '${ProjectName}-${AWS::AccountId}-${AWS::Region}-restore'
-      AccessControl: Private
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true   
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W47
+            reason: KMS not required for SNS topic; experimental code.  
 Outputs:
   RootUrl:
     Description: Root URL of the Object demo API
