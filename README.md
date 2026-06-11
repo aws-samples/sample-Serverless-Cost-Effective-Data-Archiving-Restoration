@@ -253,3 +253,7 @@ The solution achieves the following outcomes:
  
  **Ease of Use**: API endpoints allow for easy integration with the Quality Check system and straightforward file restoration requests.
 
+## Author
+  Pradip Pandey
+
+  Lead Consultant - Amazon Web Services
